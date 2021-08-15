@@ -1,10 +1,21 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { IncomingWebhook } from '@slack/webhook';
-const fs = require('fs').promises;
+import fs from 'fs/promises';
+import fetch from 'node-fetch';
+import crypto from 'crypto';
+
+const BASE_URL =
+  'https://967phuchye.execute-api.ap-southeast-2.amazonaws.com/prod/api';
 
 (async () => {
   const contentConfig = await fs.readFile('config.json', 'utf8');
+
   const config = JSON.parse(contentConfig);
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-API-Key': config.apiKey,
+  };
 
   let contentLastUsernames: any;
   let lastUsernams: string[];
@@ -15,25 +26,41 @@ const fs = require('fs').promises;
     lastUsernams = [];
   }
 
-  const browser: Browser = await puppeteer.launch({
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
-  const page: Page = await browser.newPage();
-  await page.setDefaultNavigationTimeout(30000);
-  await page.goto(
-    `https://dash.townshiptale.com/auth/login-page?redirect=/servers/${config.serverID}`
-  );
-  await page.type('#username', config.username);
-  await page.type('#password', config.password);
-  await page.click('button[type="submit"]');
-  await page.waitForNavigation({ waitUntil: 'networkidle0' });
+  const hashPassword = crypto.createHash('sha512');
+  hashPassword.update(config.password);
 
-  const usernames = await page.evaluate(() => {
-    const nodes = document.querySelectorAll(
-      '#root > div > div > div > div > div > div > div > div > div > div > div > div.MuiCardHeader-content > span.MuiTypography-root.MuiCardHeader-title.MuiTypography-body2.MuiTypography-displayBlock'
-    );
-    return Array.from(nodes).map((e: any) => e.innerText);
-  });
+  const tokens: {
+    access_token: string;
+    identity_token: string;
+    refresh_token: string;
+    request_model_errors?: any;
+  } = await (
+    await fetch(`${BASE_URL}/sessions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        username: config.username,
+        password_hash: hashPassword.digest('hex'),
+      }),
+    })
+  ).json();
+
+  const server = await (
+    await fetch(`${BASE_URL}/servers/${config.serverID}`, {
+      method: 'GET',
+      headers: Object.assign(
+        {
+          Authorization: `Bearer ${tokens.access_token}`,
+        },
+        headers
+      ),
+    })
+  ).json();
+
+  const usernames: string[] = server.online_players.map(
+    (player: { id: number; username: string }) => player.username
+  );
+
   await fs.writeFile('usernames.json', JSON.stringify(usernames));
 
   let join: string[] = [];
@@ -66,15 +93,14 @@ const fs = require('fs').promises;
     console.log('[INFO] === POST MESSAGE START ===');
     console.log(message);
     console.log('[INFO] === POST MESSAGE END ===');
-    const webhook = new IncomingWebhook(config.webhookURL);
-    await webhook.send({
-      text: message,
-    });
+    // const webhook = new IncomingWebhook(config.webhookURL);
+    // await webhook.send({
+    //   text: message,
+    // });
   } else {
     console.log("[INFO] The members didn't change.");
   }
 
   // await page.screenshot({ path: 'debug.png' }); // for debug
-  await browser.close();
   console.log('[INFO] Finished.');
 })();
