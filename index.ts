@@ -93,10 +93,10 @@ const BASE_URL =
     console.log('[INFO] === POST MESSAGE START ===');
     console.log(message);
     console.log('[INFO] === POST MESSAGE END ===');
-    // const webhook = new IncomingWebhook(config.webhookURL);
-    // await webhook.send({
-    //   text: message,
-    // });
+    const webhook = new IncomingWebhook(config.webhookURL);
+    await webhook.send({
+      text: message,
+    });
   } else {
     console.log("[INFO] The members didn't change.");
   }
