@@ -2,5 +2,6 @@
     "username" : "<your ATT username>",
     "password" : "<your ATT password>",
     "serverID" : "<your ATT server id>",
-    "webhookURL" : "<Slack Incomming Webhook URL>"
+    "webhookURL" : "<Slack Incomming Webhook URL>",
+    "apiKey" : "2l6aQGoNes8EHb94qMhqQ5m2iaiOM9666oDTPORf"
 }
